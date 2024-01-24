@@ -75,14 +75,17 @@ _tls_ext = {0: "server_name",             # RFC 4366
             13: "signature_algorithms",    # RFC 5246
             0x0f: "heartbeat",             # RFC 6520
             0x10: "alpn",                  # RFC 7301
+            0x11: "status_request_v2",      # RFC 6961
             0x12: "signed_certificate_timestamp",  # RFC 6962
             0x13: "client_certificate_type",  # RFC 7250
             0x14: "server_certificate_type",  # RFC 7250
             0x15: "padding",               # RFC 7685
             0x16: "encrypt_then_mac",      # RFC 7366
             0x17: "extended_master_secret",  # RFC 7627
+            0x18: "token_binding",         # RFC 8472
             0x1c: "record_size_limit",     # RFC 8449
             0x23: "session_ticket",        # RFC 5077
+            0x28: "key_share",
             0x29: "pre_shared_key",
             0x2a: "early_data_indication",
             0x2b: "supported_versions",
@@ -360,7 +363,7 @@ class OCSPStatusRequest(Packet):
         return Padding
 
 
-_cert_status_type = {1: "ocsp"}
+_cert_status_type = {1: "ocsp", 2: "oscp_multi"}
 _cert_status_req_cls = {1: OCSPStatusRequest}
 
 
@@ -376,6 +379,14 @@ class _StatusReqField(PacketListField):
 class TLS_Ext_CSR(TLS_Ext_Unknown):                                 # RFC 4366
     name = "TLS Extension - Certificate Status Request"
     fields_desc = [ShortEnumField("type", 5, _tls_ext),
+                   MayEnd(ShortField("len", None)),
+                   ByteEnumField("stype", None, _cert_status_type),
+                   _StatusReqField("req", [], Raw,
+                                   length_from=lambda pkt: pkt.len - 1)]
+
+class TLS_Ext_CSR_V2(TLS_Ext_Unknown):                              # RFC 6961
+    name = "TLS Extension - Certificate Status Request V2"
+    fields_desc = [ShortEnumField("type", 0x11, _tls_ext),
                    MayEnd(ShortField("len", None)),
                    ByteEnumField("stype", None, _cert_status_type),
                    _StatusReqField("req", [], Raw,
@@ -408,7 +419,7 @@ class TLS_Ext_ServerAuthz(TLS_Ext_Unknown):                         # RFC 5878
                    ]
 
 
-_tls_cert_types = {0: "X.509", 1: "OpenPGP"}
+_tls_cert_types = {0: "X.509", 1: "OpenPGP", 2: "Raw Public Key", 3: "1609Dot2"}
 
 
 class TLS_Ext_ClientCertType(TLS_Ext_Unknown):                      # RFC 5081
@@ -427,6 +438,16 @@ class TLS_Ext_ServerCertType(TLS_Ext_Unknown):                      # RFC 5081
     fields_desc = [ShortEnumField("type", 9, _tls_ext),
                    MayEnd(ShortField("len", None)),
                    ByteEnumField("ctype", None, _tls_cert_types)]
+
+class TLS_Ext_ServerCertificateTypeRFC7250(TLS_Ext_Unknown):        # RFC 7250
+    name = "TLS Extension - Server Certificate Type RFC 7250"
+    fields_desc = [ShortEnumField("type", 20, _tls_ext),
+                   MayEnd(ShortField("len", None)),
+                   FieldLenField("ctypeslen", None, fmt="B", length_of="ctypes"),
+                   FieldListField("ctypes", None,
+                                  ByteEnumField("certtypes", None,
+                                                _tls_cert_types),
+                                  length_from=lambda pkt: pkt.ctypeslen)]
 
 
 def _TLS_Ext_CertTypeDispatcher(m, *args, **kargs):
@@ -697,6 +718,21 @@ class TLS_Ext_RecordSizeLimit(TLS_Ext_Unknown):  # RFC 8449
                    ShortField("record_size_limit", None)]
 
 
+_tls_token_binding_key_params = {0: "rsa2048_pkcs1.5", 1: "rsa2048_pss", 2: "ecdsap256"}
+
+class TLS_Ext_TokenBinding(TLS_Ext_Unknown):
+    name = "TLS Extension - Token Binding"
+    fields_desc = [ShortEnumField("type", 0x18, _tls_ext),
+                   MayEnd(ShortField("len", None)),
+                   ByteField("version_major", None),
+                   ByteField("version_minor", None),
+                   FieldLenField("key_params_len", None, fmt='B',
+                                 length_of="key_params"),
+                   FieldListField("key_params", None,
+                                  ByteEnumField("key_param", None,
+                                                _tls_token_binding_key_params),
+                                  length_from=lambda pkt: pkt.key_params_len)]
+
 _tls_ext_cls = {0: TLS_Ext_ServerName,
                 1: TLS_Ext_MaxFragLen,
                 2: TLS_Ext_ClientCertURL,
@@ -713,12 +749,15 @@ _tls_ext_cls = {0: TLS_Ext_ServerName,
                 13: TLS_Ext_SignatureAlgorithms,
                 0x0f: TLS_Ext_Heartbeat,
                 0x10: TLS_Ext_ALPN,
+                0x11: TLS_Ext_CSR_V2,
+                0x14: TLS_Ext_ServerCertificateTypeRFC7250,
                 0x15: TLS_Ext_Padding,
                 0x16: TLS_Ext_EncryptThenMAC,
                 0x17: TLS_Ext_ExtendedMasterSecret,
+                0x18: TLS_Ext_TokenBinding,
                 0x1c: TLS_Ext_RecordSizeLimit,
                 0x23: TLS_Ext_SessionTicket,
-                # 0x28: TLS_Ext_KeyShare,
+                0x28: TLS_Ext_KeyShare,
                 0x29: TLS_Ext_PreSharedKey,
                 0x2a: TLS_Ext_EarlyDataIndication,
                 0x2b: TLS_Ext_SupportedVersions,
