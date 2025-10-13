@@ -193,5 +193,9 @@ class QUICCrypto:
         tag = ciphertext[-16:]  # Last 16 bytes are the tag
         ciphertext = ciphertext[:-16]
         # Decrypt the payload
-        plaintext = self._aead_decrypt(key, iv, pn, recdata, ciphertext, tag)
+        try:
+            plaintext = self._aead_decrypt(key, iv, pn, recdata, ciphertext, tag)
+        except Exception as e:
+            print(f"Decryption failed: {e}")
+            return None
         return plaintext

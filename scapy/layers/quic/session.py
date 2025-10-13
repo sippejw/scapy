@@ -12,10 +12,36 @@ import struct
 
 from scapy.config import conf
 from scapy.error import log_runtime
+from scapy.layers.tls.handshake import TLSClientHello
 from scapy.packet import Packet
 from scapy.pton_ntop import inet_pton
 from scapy.layers.inet import UDP
-from scapy.layers.tls.session import tlsSession
+from scapy.layers.tls.session import _GenericTLSSessionInheritance, tlsSession
+
+class CryptoFrames():
+    def __init__(self):
+        self.frames = []
+        self.data = None
+
+    def add_frames(self, frames):
+        self.frames.extend(frames)
+
+    def reassemble(self):
+        self.frames.sort(key=lambda f: f.Offset)
+        expected_offset = 0
+        self.data = bytearray()
+        for frame in self.frames:
+            if frame.Offset != expected_offset:
+                # There's a gap, we can't reassemble yet
+                self.data = None
+                return None
+            else:
+                self.data += frame.Data
+            expected_offset = frame.Offset + len(frame.Data)
+        return self.data
+
+    def get_all(self):
+        return self.frames
 
 class quicSession(tlsSession):
     """
@@ -32,6 +58,7 @@ class quicSession(tlsSession):
                  sport=None, dport=None,
                   connection_end="server",
                    wcs=None, rcs=None):
+        self.crypto_frames = CryptoFrames()
         super().__init__(ipsrc=ipsrc, ipdst=ipdst,
                          sport=sport, dport=dport,
                          connection_end=connection_end,
@@ -50,6 +77,18 @@ class quicSession(tlsSession):
                 self.ipdst = udp.underlayer.dst
             except AttributeError:
                 pass
+
+    def add_crypto_frames(self, frames):
+        self.crypto_frames.add_frames(frames)
+        if conf.debug_quic:
+            log_runtime.info("QUIC: added crypto frame %s", frames)
+        if self.crypto_frames.reassemble() is not None:
+            if conf.debug_quic:
+                log_runtime.info("QUIC: reassembled crypto data")
+            self.parse_tls(self.crypto_frames.data)
+    
+    def parse_tls(self, pkt):
+        self.ch = TLSClientHello(pkt, _underlayer=pkt, tls_session=self)
 
 class _GenericQUICSessionInheritance(Packet):
     """

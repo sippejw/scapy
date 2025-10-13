@@ -80,7 +80,7 @@ class QUIC_Frame_PADDING(Frame):
     name = "QUIC Frame - Padding"
     fields_desc = [
         QuicVarEnumField("FrameType", 0x00, _quic_frames),
-        IntField("PaddingLength", 0),
+        # IntField("PaddingLength", 0),
     ]
 
     def extract_padding(self, s):

@@ -1140,9 +1140,9 @@ class Conf(ConfClass):
     #: or a FieldListField
     max_list_count = 100
     #: When the TLS module is loaded (not by default), the following turns on sessions
-    tls_session_enable = False
+    tls_session_enable = True
     #: When the QUIC module is loaded (not by default), the following turns on sessions
-    quic_session_enable = False
+    quic_session_enable = True
     #: Filename containing NSS Keys Log
     tls_nss_filename = Interceptor(
         "tls_nss_filename",

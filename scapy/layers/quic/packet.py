@@ -184,6 +184,8 @@ class QUIC_Initial(QUIC_Long):
         unencrypted_packet[packet_number_offset+packet_number_len:packet_number_offset+length] = plaintext
         return bytes(unencrypted_packet)
 
+    def dissection_done(self, s):
+        self.quic_session.add_crypto_frames([frame for frame in self.Frames if frame.name == "QUIC Frame - Crypto"])
 
 # RFC9000 sect 17.2.3
 class QUIC_0RTT(QUIC_Long):
