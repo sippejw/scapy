@@ -97,6 +97,8 @@ _tls_ext = {0: "server_name",             # RFC 4366
             0x33: "key_share",
             0x39: "quic_transport_parameters",  # RFC 9000
             0x3374: "next_protocol_negotiation",
+            0x44cd: "application_layer_protocol_settings", # draft-vvv-tls-alps
+            0xfe0d: "encrypted_client_hello",
             # RFC-draft-agl-tls-nextprotoneg-03
             0xff01: "renegotiation_info",   # RFC 5746
             0xffce: "encrypted_server_name"
@@ -722,6 +724,32 @@ class TLS_Ext_CompressCertificate(TLS_Ext_Unknown):  # RFC 8879
                                                 _tls_compress_certificate_algorithm_types),
                                                 length_from=lambda pkt: pkt.algorithms_len)]
 
+_tls_encrypted_client_hello_types = {0: "outer",
+                                     1: "inner"}
+
+class TLS_Ext_EncryptedClientHello(TLS_Ext_Unknown):  # draft-ietf-tls-esni-25
+    name = "TLS Extension - Encrypted Client Hello"
+    fields_desc = [ShortEnumField("type", 0xfe0d, _tls_ext),
+                   FieldLenField("len", None),
+                   MayEnd(ByteEnumField("ech_type", 0, _tls_encrypted_client_hello_types)),
+                   ShortField("kdf_id", 0),
+                   ShortField("aead_id", 0),
+                   ByteField("config_id", 0),
+                   ShortField("enc_len", 0),
+                   XStrLenField("enc", b"",
+                                length_from=lambda pkt: pkt.enc_len),
+                   ShortField("payload_len", 0),
+                   XStrLenField("payload", b"",
+                                length_from=lambda pkt: pkt.payload_len),
+                   ]
+
+class TLS_Ext_ApplicationLayerProtocolSettings(TLS_Ext_Unknown):
+    name = "TLS Extension - Application Layer Protocol Settings"
+    fields_desc = [ShortEnumField("type", 0x44cd, _tls_ext),
+                   MayEnd(ShortField("len", None)),
+                   FieldLenField("alps_len", None, length_of="supported_alpn_list"),
+                   ProtocolListField("supported_alpn_list", [], ProtocolName,
+                                     length_from=lambda pkt:pkt.alps_len)]
 
 _tls_ext_cls = {0: TLS_Ext_ServerName,
                 1: TLS_Ext_MaxFragLen,
@@ -759,6 +787,8 @@ _tls_ext_cls = {0: TLS_Ext_ServerName,
                 # 0x30: TLS_Ext_OIDFilters,                   #XXX
                 0x39: TLS_Ext_QUICTransportParameters,
                 0x3374: TLS_Ext_NPN,
+                0x44cd: TLS_Ext_ApplicationLayerProtocolSettings,
+                0xfe0d: TLS_Ext_EncryptedClientHello,
                 0xff01: TLS_Ext_RenegotiationInfo,
                 0xffce: TLS_Ext_EncryptedServerName
                 }
