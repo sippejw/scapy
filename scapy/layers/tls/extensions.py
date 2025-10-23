@@ -83,6 +83,7 @@ _tls_ext = {0: "server_name",             # RFC 4366
             0x16: "encrypt_then_mac",      # RFC 7366
             0x17: "extended_master_secret",  # RFC 7627
             0x1c: "record_size_limit",     # RFC 8449
+            0x1b: "compress_certificate",  # RFC 8879
             0x23: "session_ticket",        # RFC 5077
             0x29: "pre_shared_key",
             0x2a: "early_data_indication",
@@ -707,6 +708,20 @@ class TLS_Ext_QUICTransportParameters(TLS_Ext_Unknown):  # RFC9000
                                                  None,
                                                  length_from=lambda pkt: pkt.len)]
 
+_tls_compress_certificate_algorithm_types = {1: "zlib",
+                                2: "brotli",
+                                3: "zstd"}
+
+class TLS_Ext_CompressCertificate(TLS_Ext_Unknown):  # RFC 8879
+    name = "TLS Extension - Compress Certificate"
+    fields_desc = [ShortEnumField("type", 0x1b, _tls_ext),
+                   MayEnd(ShortField("len", None)),
+                   FieldLenField("algorithms_len", None, fmt="B", length_of="algorithms"),
+                   FieldListField("algorithms", [],
+                                  ShortEnumField("algorithm", 0,
+                                                _tls_compress_certificate_algorithm_types),
+                                                length_from=lambda pkt: pkt.algorithms_len)]
+
 
 _tls_ext_cls = {0: TLS_Ext_ServerName,
                 1: TLS_Ext_MaxFragLen,
@@ -728,6 +743,7 @@ _tls_ext_cls = {0: TLS_Ext_ServerName,
                 0x16: TLS_Ext_EncryptThenMAC,
                 0x17: TLS_Ext_ExtendedMasterSecret,
                 0x1c: TLS_Ext_RecordSizeLimit,
+                0x1b: TLS_Ext_CompressCertificate,
                 0x23: TLS_Ext_SessionTicket,
                 # 0x28: TLS_Ext_KeyShare,
                 0x29: TLS_Ext_PreSharedKey,
